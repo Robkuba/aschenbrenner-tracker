@@ -1,0 +1,76 @@
+# =====================================================================
+#  GitHub Actions: corre TODO el flujo gratis, 1 vez al dia, sin tu PC.
+#  Guarda este archivo en tu repo en:  .github/workflows/tracker.yml
+#
+#  Al detectar un 13F nuevo: avisa por WhatsApp, regenera grafico +
+#  carrusel + reel, y dispara el webhook de Make.com -> Buffer/Metricool
+#  (como BORRADOR, pendiente de tu aprobacion).
+#
+#  Secretos (Settings > Secrets and variables > Actions > Secrets):
+#      - SEC_USER_AGENT     (ej: Robkubano Tracker tucorreo@gmail.com)
+#      - CALLMEBOT_PHONE    (ej: +4915123456789)
+#      - CALLMEBOT_APIKEY   (la que te dio CallMeBot)
+#      - MAKE_WEBHOOK_URL   (URL del webhook de tu escenario en Make.com)
+#  Variables (Settings > Secrets and variables > Actions > Variables):
+#      - IMAGE_BASE_URL     (ej: https://raw.githubusercontent.com/USUARIO/REPO/main)
+#      - SCHEDULE_MODE      ("draft" recomendado, o "auto")
+# =====================================================================
+name: Aschenbrenner 13F Tracker
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # todos los dias a las 12:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          pip install matplotlib pillow
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Regenerar grafico
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: python chart_evolution.py
+
+      - name: Regenerar carrusel
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: python carousel_images.py
+
+      - name: Regenerar reel (video)
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: python reel_video.py
+
+      - name: Ejecutar el tracker (alerta + publicacion)
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          IMAGE_BASE_URL: ${{ vars.IMAGE_BASE_URL }}
+          SCHEDULE_MODE: ${{ vars.SCHEDULE_MODE }}
+        run: python aschenbrenner_tracker.py
+
+      - name: Guardar estado y assets
+        run: |
+          git config user.name "tracker-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add state.json aschenbrenner_evolucion.png slides/ reel_aschenbrenner.mp4 fonts/ || true
+          git commit -m "Actualizar tracker [skip ci]" || echo "Sin cambios"
+          git push || echo "Nada que subir"
