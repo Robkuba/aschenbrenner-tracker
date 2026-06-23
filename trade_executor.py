@@ -105,6 +105,19 @@ def compute_stop_loss(order, price):
     return round(rate, 4)
 
 
+def compute_take_profit(order, price):
+    """Convierte take_profit_pct (%) en precio absoluto (TakeProfitRate)."""
+    if order.get("take_profit_rate") is not None:
+        return order["take_profit_rate"]
+    pct = order.get("take_profit_pct")
+    if not pct or not price:
+        return None
+    f = pct / 100.0
+    # Largo: objetivo por encima. Corto: por debajo.
+    rate = price * (1 + f) if order.get("is_buy", True) else price * (1 - f)
+    return round(rate, 4)
+
+
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="Ejecuta ordenes aprobadas en eToro")
@@ -139,17 +152,21 @@ def main():
             skipped += 1
             continue
         sl_rate = compute_stop_loss(o, price)
-        if o.get("stop_loss_pct") and sl_rate is None:
-            print(f"  [aviso] {o['name']}: sin precio en vivo, va SIN stop-loss "
-                  f"(ponlo a mano en eToro).")
-        elif sl_rate is not None:
-            print(f"  [SL] {o['name']}: stop-loss en {sl_rate} (-{o.get('stop_loss_pct')}%)")
+        tp_rate = compute_take_profit(o, price)
+        if (o.get("stop_loss_pct") or o.get("take_profit_pct")) and price is None:
+            print(f"  [aviso] {o['name']}: sin precio en vivo, va SIN stop/take-profit "
+                  f"(ponlos a mano en eToro).")
+        else:
+            if sl_rate is not None:
+                print(f"  [SL] {o['name']}: stop-loss en {sl_rate} (-{o.get('stop_loss_pct')}%)")
+            if tp_rate is not None:
+                print(f"  [TP] {o['name']}: take-profit en {tp_rate} (+{o.get('take_profit_pct')}%)")
         try:
             res = client.open_position(
                 instrument_id=iid, is_buy=o.get("is_buy", True),
                 amount_usd=o["amount_usd"], leverage=o.get("leverage", 1),
                 stop_loss_rate=sl_rate,
-                take_profit_rate=o.get("take_profit_rate"),
+                take_profit_rate=tp_rate,
             )
             log(f"OK {o['name']} instr={iid} ${o['amount_usd']:.2f} -> {json.dumps(res, ensure_ascii=False)}")
             ok += 1
