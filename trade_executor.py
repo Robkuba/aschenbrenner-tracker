@@ -50,8 +50,20 @@ def log(line):
     print(line)
 
 
+def _instrument_price(it):
+    """Intenta sacar el precio actual de los metadatos (varios nombres posibles)."""
+    for k in ("currentRate", "lastPrice", "price", "close", "Ask", "ask", "rate"):
+        v = it.get(k)
+        try:
+            if v is not None:
+                return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def _index_instruments(client):
-    """Mapa ticker(upper) -> instrument_id a partir del universo del API."""
+    """Mapa ticker(upper) -> {id, price} a partir del universo del API."""
     idx = {}
     try:
         data = client.get_instruments()
@@ -63,15 +75,34 @@ def _index_instruments(client):
         sym = (it.get("symbolFull") or it.get("symbol") or it.get("ticker") or "").upper()
         iid = it.get("instrumentId") or it.get("InstrumentID") or it.get("id")
         if sym and iid:
-            idx[sym] = iid
+            idx[sym] = {"id": iid, "price": _instrument_price(it)}
     return idx
 
 
-def resolve_instrument_id(order, idx):
+def resolve_instrument(order, idx):
+    """Devuelve (instrument_id, precio_actual) para una orden."""
     if order.get("instrument_id"):
-        return order["instrument_id"]
-    key = (order.get("etoro") or "").upper()
-    return idx.get(key)
+        return order["instrument_id"], None
+    info = idx.get((order.get("etoro") or "").upper())
+    if info:
+        return info["id"], info.get("price")
+    return None, None
+
+
+def compute_stop_loss(order, price):
+    """
+    Convierte stop_loss_pct (%) en precio absoluto (StopLossRate) usando el
+    precio actual. Si ya viene stop_loss_rate fijo, se respeta tal cual.
+    """
+    if order.get("stop_loss_rate") is not None:
+        return order["stop_loss_rate"]
+    pct = order.get("stop_loss_pct")
+    if not pct or not price:
+        return None
+    f = pct / 100.0
+    # Largo: stop por debajo. Corto: stop por encima.
+    rate = price * (1 - f) if order.get("is_buy", True) else price * (1 + f)
+    return round(rate, 4)
 
 
 def main():
@@ -102,16 +133,22 @@ def main():
     idx = _index_instruments(client)
     ok, skipped = 0, 0
     for o in orders:
-        iid = resolve_instrument_id(o, idx)
+        iid, price = resolve_instrument(o, idx)
         if not iid:
             log(f"SALTADA {o['name']} ({o['etoro']}): no se resolvio instrument_id")
             skipped += 1
             continue
+        sl_rate = compute_stop_loss(o, price)
+        if o.get("stop_loss_pct") and sl_rate is None:
+            print(f"  [aviso] {o['name']}: sin precio en vivo, va SIN stop-loss "
+                  f"(ponlo a mano en eToro).")
+        elif sl_rate is not None:
+            print(f"  [SL] {o['name']}: stop-loss en {sl_rate} (-{o.get('stop_loss_pct')}%)")
         try:
             res = client.open_position(
                 instrument_id=iid, is_buy=o.get("is_buy", True),
                 amount_usd=o["amount_usd"], leverage=o.get("leverage", 1),
-                stop_loss_rate=o.get("stop_loss_rate"),
+                stop_loss_rate=sl_rate,
                 take_profit_rate=o.get("take_profit_rate"),
             )
             log(f"OK {o['name']} instr={iid} ${o['amount_usd']:.2f} -> {json.dumps(res, ensure_ascii=False)}")
