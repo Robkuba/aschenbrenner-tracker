@@ -1,0 +1,46 @@
+# =====================================================================
+#  GitHub Actions: informe SEMANAL de tu cartera de eToro por WhatsApp.
+#  Se manda SIEMPRE (haya o no desviaciones): valor total, liquidez y P&L.
+#  SOLO LECTURA: no ejecuta ninguna orden.
+#
+#  Guardar en:  .github/workflows/portfolio_report.yml
+#
+#  Secretos (Settings > Secrets and variables > Actions > Secrets):
+#      - ETORO_API_KEY    (tu x-api-key)
+#      - ETORO_USER_KEY   (tu x-user-key)
+#      - CALLMEBOT_PHONE  (ej: +4915123456789)
+#      - CALLMEBOT_APIKEY (la que te dio CallMeBot)
+#  Variables (Settings > Secrets and variables > Actions > Variables):
+#      - ETORO_ENV        ("real" para tu cartera real | "demo")
+# =====================================================================
+name: Informe semanal de cartera (eToro)
+
+on:
+  schedule:
+    - cron: "0 21 * * 5"   # cada viernes a las 21:00 UTC (cierre de semana)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Enviar informe de cartera (solo lectura)
+        env:
+          ETORO_API_KEY: ${{ secrets.ETORO_API_KEY }}
+          ETORO_USER_KEY: ${{ secrets.ETORO_USER_KEY }}
+          ETORO_ENV: ${{ vars.ETORO_ENV }}
+          ETORO_DRY_RUN: "1"
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+        run: python portfolio_report.py --wa
