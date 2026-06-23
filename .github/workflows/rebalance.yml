@@ -1,0 +1,52 @@
+# =====================================================================
+#  GitHub Actions: revisa el rebalanceo de tu cartera de eToro y te avisa
+#  por WhatsApp cada lunes. SOLO LECTURA: no ejecuta ninguna orden, solo
+#  compara tu cartera real con el plan y te dice que se ha desviado.
+#
+#  Guardar en:  .github/workflows/rebalance.yml
+#
+#  Secretos (Settings > Secrets and variables > Actions > Secrets):
+#      - ETORO_API_KEY      (tu x-api-key del portal de eToro)
+#      - ETORO_USER_KEY     (tu x-user-key)
+#      - CALLMEBOT_PHONE    (ej: +4915123456789)
+#      - CALLMEBOT_APIKEY   (la que te dio CallMeBot)
+#  Variables (Settings > Secrets and variables > Actions > Variables):
+#      - ETORO_ENV               ("real" para leer tu cartera real | "demo")
+#      - REBALANCE_THRESHOLD_PCT (umbral de aviso en puntos %, ej "5")
+#
+#  IMPORTANTE: este workflow NUNCA opera. Si quieres aplicar los ajustes,
+#  los apruebas a mano en rebalance_orders.json y ejecutas trade_executor
+#  TU, desde tu PC. Asi el dinero real nunca se mueve solo.
+# =====================================================================
+name: Rebalanceo Kubabot (eToro)
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # cada lunes a las 07:00 UTC
+  workflow_dispatch:       # y cuando lo lances a mano
+
+permissions:
+  contents: read
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Revisar desviaciones y avisar (solo lectura)
+        env:
+          ETORO_API_KEY: ${{ secrets.ETORO_API_KEY }}
+          ETORO_USER_KEY: ${{ secrets.ETORO_USER_KEY }}
+          ETORO_ENV: ${{ vars.ETORO_ENV }}
+          ETORO_DRY_RUN: "1"   # cinturon extra: aunque algo intentara operar, no lo haria
+          REBALANCE_THRESHOLD_PCT: ${{ vars.REBALANCE_THRESHOLD_PCT }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+        run: python rebalance.py --wa
