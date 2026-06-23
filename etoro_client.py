@@ -51,6 +51,15 @@ DRY_RUN = os.environ.get("ETORO_DRY_RUN", "1") != "0"
 ETORO_API_KEY = os.environ.get("ETORO_API_KEY", "")
 ETORO_USER_KEY = os.environ.get("ETORO_USER_KEY", "")
 
+# eToro esta detras de Cloudflare y BLOQUEA el User-Agent por defecto de
+# Python (error 1010). Hay que presentarse como un navegador normal.
+# Puedes cambiarlo por env si en el futuro hiciera falta otro.
+ETORO_USER_AGENT = os.environ.get(
+    "ETORO_USER_AGENT",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+)
+
 # Topes de seguridad (se pueden subir por entorno, pero existen a proposito)
 MAX_ORDER_USD = float(os.environ.get("ETORO_MAX_ORDER_USD", "500"))
 
@@ -80,6 +89,7 @@ class EtoroClient:
         return {
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": ETORO_USER_AGENT,
             "x-api-key": self.api_key,
             "x-user-key": self.user_key,
             "x-request-id": str(uuid.uuid4()),
