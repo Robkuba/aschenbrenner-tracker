@@ -36,7 +36,9 @@ from datetime import datetime
 from trade_candidates import CANDIDATES
 
 # Capital total asumido para dimensionar (USD). Cambialo por env.
-CAPITAL_USD = float(os.environ.get("ETORO_CAPITAL_USD", "1000"))
+CAPITAL_USD = float(os.environ.get("ETORO_CAPITAL_USD", "200"))
+# eToro exige un ticket minimo por operacion (~10 USD en acciones).
+MIN_ORDER_USD = float(os.environ.get("ETORO_MIN_ORDER_USD", "10"))
 PROPOSED_FILE = os.environ.get("PROPOSED_FILE", "proposed_orders.json")
 
 STOOQ_HIST = "https://stooq.com/q/d/l/?s={sym}&i=d"
@@ -166,6 +168,10 @@ def run(capital=CAPITAL_USD, only_buys=True, save=True):
 
         if a["action"] == "BUY" or not only_buys:
             amount = size_order(cand, capital)
+            if amount < MIN_ORDER_USD:
+                # Demasiado pequena para el minimo de eToro: no la proponemos.
+                print(f"  (omitida {cand['name']}: ${amount:.2f} < minimo ${MIN_ORDER_USD:.0f})")
+                continue
             proposed.append({
                 "symbol": cand["symbol"], "name": cand["name"],
                 "etoro": cand["etoro"], "tier": cand["tier"],
