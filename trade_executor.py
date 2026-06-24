@@ -50,35 +50,34 @@ def log(line):
     print(line)
 
 
-def _rate_price(it):
-    """Saca el precio de un item de market-data/rates (varios nombres posibles)."""
-    for k in ("lastRate", "rate", "price", "ask", "askPrice", "bid",
-              "currentRate", "close", "last", "mid"):
-        v = it.get(k)
+import io
+import csv
+import urllib.request
+
+# Precio en vivo via Stooq (gratis). Las ordenes traen el simbolo (ej. spy.us).
+STOOQ_QUOTE = "https://stooq.com/q/l/?s={syms}&f=sd2t2ohlcv&h&e=csv"
+
+
+def fetch_prices(orders):
+    """Mapa simbolo(lower) -> precio en vivo via Stooq (una sola peticion)."""
+    out = {}
+    syms = [o.get("symbol") for o in orders if o.get("symbol")]
+    if not syms:
+        return out
+    url = STOOQ_QUOTE.format(syms="+".join(syms))
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read().decode("utf-8", "ignore")
+    except Exception as e:
+        print(f"[aviso] No se pudieron leer precios (Stooq): {e}")
+        return out
+    for row in csv.DictReader(io.StringIO(raw)):
+        sym = (row.get("Symbol") or row.get("symbol") or "").lower()
         try:
-            if v is not None:
-                return float(v)
+            out[sym] = float(row.get("Close") or row.get("close"))
         except (TypeError, ValueError):
             continue
-    return None
-
-
-def fetch_prices(client, instrument_ids):
-    """Mapa instrument_id(str) -> precio en vivo via market-data/rates."""
-    out = {}
-    if not instrument_ids:
-        return out
-    try:
-        data = client.get_rates(instrument_ids)
-    except EtoroError as e:
-        print(f"[aviso] No se pudieron leer precios en vivo: {e}")
-        return out
-    items = (data.get("rates") or data.get("rateDisplayDatas")
-             or data.get("data") or (data if isinstance(data, list) else []))
-    for it in items:
-        iid = (it.get("instrumentID") or it.get("instrumentId") or it.get("id"))
-        if iid is not None:
-            out[str(iid)] = _rate_price(it)
     return out
 
 
@@ -179,12 +178,12 @@ def main():
 
     idx = _index_instruments(client)
 
-    # Resolver ids primero y pedir todos los precios en una sola llamada.
+    # Resolver ids primero y pedir todos los precios (Stooq) de una vez.
     resolved = []
     for o in orders:
         iid, _ = resolve_instrument(o, idx)
         resolved.append((o, iid))
-    prices = fetch_prices(client, [iid for _, iid in resolved if iid])
+    prices = fetch_prices(orders)
 
     ok, skipped = 0, 0
     for o, iid in resolved:
@@ -192,7 +191,7 @@ def main():
             log(f"SALTADA {o['name']} ({o['etoro']}): no se resolvio instrument_id")
             skipped += 1
             continue
-        price = prices.get(str(iid))
+        price = prices.get((o.get("symbol") or "").lower())
         sl_rate = compute_stop_loss(o, price)
         tp_rate = compute_take_profit(o, price)
         if (o.get("stop_loss_pct") or o.get("take_profit_pct")) and price is None:
