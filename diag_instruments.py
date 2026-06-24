@@ -1,43 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Diagnostico: enseña como viene la lista de instrumentos del API de eToro,
-para poder mapear bien ticker -> instrument_id. No opera nada, solo lee.
+Diagnostico: comprueba que los tickers de tus ordenes existen en eToro y
+muestra su instrumentID. No opera nada, solo lee.
 Uso:  python diag_instruments.py
 """
 import json
 from etoro_client import EtoroClient
 
+PLAN_FILE = "orders_kubabot_200.json"
+
 c = EtoroClient()
 print(f"Entorno: {c.env}\n")
+data = c.get_instruments()
+items = (data.get("instrumentDisplayDatas") or data.get("instruments")
+         or (data if isinstance(data, list) else []))
+print(f"Instrumentos recibidos: {len(items)}\n")
 
-print(">>> Probando get_instruments() SIN filtro...")
-try:
-    data = c.get_instruments()
-except Exception as e:
-    print("ERROR:", e)
-    raise SystemExit
+# Indexar por ticker (symbolFull) -> instrumentID
+idx = {}
+for it in items:
+    sym = (it.get("symbolFull") or "").upper()
+    iid = it.get("instrumentID") or it.get("instrumentId") or it.get("id")
+    if sym and iid:
+        idx[sym] = iid
 
-print("TIPO de la respuesta:", type(data).__name__)
-if isinstance(data, dict):
-    print("CLAVES de primer nivel:", list(data.keys()))
+# Comprobar los tickers del plan
+with open(PLAN_FILE, encoding="utf-8") as f:
+    orders = json.load(f)["orders"]
 
-# Localizar la lista de instrumentos sea cual sea su nombre
-items = None
-if isinstance(data, list):
-    items = data
-elif isinstance(data, dict):
-    for k in ("instruments", "data", "items", "result", "results", "instrumentDisplayDatas"):
-        v = data.get(k)
-        if isinstance(v, list):
-            items = v
-            print(f"Lista encontrada bajo la clave: '{k}'")
-            break
+print("--- Comprobacion de tus 12 ordenes ---")
+faltan = []
+for o in orders:
+    tk = (o.get("etoro") or "").upper()
+    iid = idx.get(tk)
+    estado = f"OK  id={iid}" if iid else "NO ENCONTRADO"
+    print(f"  {o['name'][:16]:16} {tk:6} -> {estado}")
+    if not iid:
+        faltan.append(o)
 
-if items:
-    print(f"\nNumero de instrumentos: {len(items)}")
-    print("\n--- PRIMER instrumento (sus campos) ---")
-    print(json.dumps(items[0], indent=2, ensure_ascii=False)[:1800])
+if faltan:
+    print("\n--- Buscando parecidos para los que faltan ---")
+    for o in faltan:
+        base = (o.get("etoro") or "").upper()
+        cand = [s for s in idx if base in s or s in base][:8]
+        print(f"  {o['name']} ({base}): posibles -> {cand}")
 else:
-    print("\nNo encontre una lista de instrumentos. Vuelco crudo (recortado):")
-    print(json.dumps(data, indent=2, ensure_ascii=False)[:1800])
+    print("\n¡Todos encontrados! El robot ya puede operarlos. ✅")

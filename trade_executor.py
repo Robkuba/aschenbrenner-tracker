@@ -70,10 +70,12 @@ def _index_instruments(client):
     except EtoroError as e:
         print(f"[aviso] No se pudo listar instrumentos: {e}")
         return idx
-    items = data.get("instruments", data if isinstance(data, list) else [])
+    items = (data.get("instrumentDisplayDatas") or data.get("instruments")
+             or (data if isinstance(data, list) else []))
     for it in items:
         sym = (it.get("symbolFull") or it.get("symbol") or it.get("ticker") or "").upper()
-        iid = it.get("instrumentId") or it.get("InstrumentID") or it.get("id")
+        iid = (it.get("instrumentID") or it.get("instrumentId")
+               or it.get("InstrumentID") or it.get("id"))
         if sym and iid:
             idx[sym] = {"id": iid, "price": _instrument_price(it)}
     return idx

@@ -66,9 +66,11 @@ def _id_to_ticker(client):
     except EtoroError as e:
         print(f"[aviso] No se pudo listar instrumentos: {e}")
         return out
-    items = data.get("instruments", data if isinstance(data, list) else [])
+    items = (data.get("instrumentDisplayDatas") or data.get("instruments")
+             or (data if isinstance(data, list) else []))
     for it in items:
-        iid = it.get("instrumentId") or it.get("InstrumentID") or it.get("id")
+        iid = (it.get("instrumentID") or it.get("instrumentId")
+               or it.get("InstrumentID") or it.get("id"))
         sym = (it.get("symbolFull") or it.get("symbol") or it.get("ticker") or "").upper()
         if iid and sym:
             out[str(iid)] = sym
