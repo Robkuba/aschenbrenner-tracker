@@ -166,7 +166,7 @@ def compute_stop_loss(order, price):
     f = pct / 100.0
     # Largo: stop por debajo. Corto: stop por encima.
     rate = price * (1 - f) if order.get("is_buy", True) else price * (1 + f)
-    return round(rate, 4)
+    return round(rate, 2)
 
 
 def compute_take_profit(order, price):
@@ -179,7 +179,7 @@ def compute_take_profit(order, price):
     f = pct / 100.0
     # Largo: objetivo por encima. Corto: por debajo.
     rate = price * (1 + f) if order.get("is_buy", True) else price * (1 - f)
-    return round(rate, 4)
+    return round(rate, 2)
 
 
 def main():
