@@ -54,17 +54,31 @@ import io
 import csv
 import urllib.request
 
-# Precio en vivo via Stooq (gratis). Las ordenes traen el simbolo (ej. spy.us).
+# Precio en vivo. Fuente 1: Yahoo Finance (usa el ticker, ej. SPY).
+# Fuente 2 (reserva): Stooq (usa el simbolo, ej. spy.us).
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
 STOOQ_QUOTE = "https://stooq.com/q/l/?s={sym}&f=sd2t2ohlcv&h&e=csv"
 
 
-def _stooq_price(symbol):
-    """Precio (Close) de un simbolo en Stooq, o None si no hay dato."""
-    url = STOOQ_QUOTE.format(sym=symbol)
+def _http_text(url, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        raw = r.read().decode("utf-8", "ignore")
-    for row in csv.DictReader(io.StringIO(raw)):
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read().decode("utf-8", "ignore")
+
+
+def _yahoo_price(ticker):
+    """Precio actual via Yahoo Finance, o None."""
+    d = json.loads(_http_text(YAHOO_URL.format(sym=ticker)))
+    res = (d.get("chart") or {}).get("result") or []
+    if res:
+        p = (res[0].get("meta") or {}).get("regularMarketPrice")
+        return float(p) if p is not None else None
+    return None
+
+
+def _stooq_price(symbol):
+    """Precio (Close) de un simbolo en Stooq, o None."""
+    for row in csv.DictReader(io.StringIO(_http_text(STOOQ_QUOTE.format(sym=symbol)))):
         try:
             return float(row.get("Close") or row.get("close"))
         except (TypeError, ValueError):
@@ -73,20 +87,28 @@ def _stooq_price(symbol):
 
 
 def fetch_prices(orders):
-    """Mapa simbolo(lower) -> precio en vivo via Stooq (uno a uno)."""
+    """Mapa simbolo(lower) -> precio en vivo. Prueba Yahoo y luego Stooq."""
     out, fails = {}, 0
     for o in orders:
-        sym = o.get("symbol")
-        if not sym:
-            continue
-        try:
-            p = _stooq_price(sym)
-            if p is not None:
-                out[sym.lower()] = p
-        except Exception:
+        ssym = (o.get("symbol") or "")
+        ticker = (o.get("etoro") or "").upper()
+        price = None
+        if ticker:
+            try:
+                price = _yahoo_price(ticker)
+            except Exception:
+                price = None
+        if price is None and ssym:
+            try:
+                price = _stooq_price(ssym)
+            except Exception:
+                price = None
+        if price is not None:
+            out[ssym.lower()] = price
+        else:
             fails += 1
     if not out:
-        print(f"[aviso] No se pudieron leer precios (Stooq). Fallos: {fails}")
+        print(f"[aviso] No se pudieron leer precios (Yahoo/Stooq). Fallos: {fails}")
     return out
 
 
