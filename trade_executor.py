@@ -55,29 +55,38 @@ import csv
 import urllib.request
 
 # Precio en vivo via Stooq (gratis). Las ordenes traen el simbolo (ej. spy.us).
-STOOQ_QUOTE = "https://stooq.com/q/l/?s={syms}&f=sd2t2ohlcv&h&e=csv"
+STOOQ_QUOTE = "https://stooq.com/q/l/?s={sym}&f=sd2t2ohlcv&h&e=csv"
+
+
+def _stooq_price(symbol):
+    """Precio (Close) de un simbolo en Stooq, o None si no hay dato."""
+    url = STOOQ_QUOTE.format(sym=symbol)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        raw = r.read().decode("utf-8", "ignore")
+    for row in csv.DictReader(io.StringIO(raw)):
+        try:
+            return float(row.get("Close") or row.get("close"))
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 def fetch_prices(orders):
-    """Mapa simbolo(lower) -> precio en vivo via Stooq (una sola peticion)."""
-    out = {}
-    syms = [o.get("symbol") for o in orders if o.get("symbol")]
-    if not syms:
-        return out
-    url = STOOQ_QUOTE.format(syms="+".join(syms))
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            raw = r.read().decode("utf-8", "ignore")
-    except Exception as e:
-        print(f"[aviso] No se pudieron leer precios (Stooq): {e}")
-        return out
-    for row in csv.DictReader(io.StringIO(raw)):
-        sym = (row.get("Symbol") or row.get("symbol") or "").lower()
-        try:
-            out[sym] = float(row.get("Close") or row.get("close"))
-        except (TypeError, ValueError):
+    """Mapa simbolo(lower) -> precio en vivo via Stooq (uno a uno)."""
+    out, fails = {}, 0
+    for o in orders:
+        sym = o.get("symbol")
+        if not sym:
             continue
+        try:
+            p = _stooq_price(sym)
+            if p is not None:
+                out[sym.lower()] = p
+        except Exception:
+            fails += 1
+    if not out:
+        print(f"[aviso] No se pudieron leer precios (Stooq). Fallos: {fails}")
     return out
 
 
