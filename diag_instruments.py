@@ -47,3 +47,14 @@ if faltan:
         print(f"  {o['name']} ({base}): posibles -> {cand}")
 else:
     print("\n¡Todos encontrados! El robot ya puede operarlos. ✅")
+
+# --- Precios en vivo (market-data/rates) para un par de ejemplos ---
+sample_ids = [idx[(o.get("etoro") or "").upper()] for o in orders[:3]
+              if idx.get((o.get("etoro") or "").upper())]
+if sample_ids:
+    print(f"\n--- Precios en vivo (rates) para ids {sample_ids} ---")
+    try:
+        rdata = c.get_rates(sample_ids)
+        print(json.dumps(rdata, indent=2, ensure_ascii=False)[:1500])
+    except Exception as e:
+        print("ERROR pidiendo rates:", e)

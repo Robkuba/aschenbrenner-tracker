@@ -161,6 +161,11 @@ class EtoroClient:
             params["instrumentIds"] = ",".join(str(i) for i in instrument_ids)
         return self._request("GET", "market-data/instruments", params=params)
 
+    def get_rates(self, instrument_ids):
+        """Precios en vivo de una lista de instrumentos (market-data/rates)."""
+        params = {"instrumentIds": ",".join(str(i) for i in instrument_ids)}
+        return self._request("GET", "market-data/rates", params=params)
+
     # -------------------------- EJECUCION ----------------------------
     def open_position(self, instrument_id, is_buy, amount_usd,
                       leverage=1, stop_loss_rate=None, take_profit_rate=None,

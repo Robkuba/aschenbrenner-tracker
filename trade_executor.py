@@ -50,6 +50,38 @@ def log(line):
     print(line)
 
 
+def _rate_price(it):
+    """Saca el precio de un item de market-data/rates (varios nombres posibles)."""
+    for k in ("lastRate", "rate", "price", "ask", "askPrice", "bid",
+              "currentRate", "close", "last", "mid"):
+        v = it.get(k)
+        try:
+            if v is not None:
+                return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def fetch_prices(client, instrument_ids):
+    """Mapa instrument_id(str) -> precio en vivo via market-data/rates."""
+    out = {}
+    if not instrument_ids:
+        return out
+    try:
+        data = client.get_rates(instrument_ids)
+    except EtoroError as e:
+        print(f"[aviso] No se pudieron leer precios en vivo: {e}")
+        return out
+    items = (data.get("rates") or data.get("rateDisplayDatas")
+             or data.get("data") or (data if isinstance(data, list) else []))
+    for it in items:
+        iid = (it.get("instrumentID") or it.get("instrumentId") or it.get("id"))
+        if iid is not None:
+            out[str(iid)] = _rate_price(it)
+    return out
+
+
 def _instrument_price(it):
     """Intenta sacar el precio actual de los metadatos (varios nombres posibles)."""
     for k in ("currentRate", "lastPrice", "price", "close", "Ask", "ask", "rate"):
@@ -146,13 +178,21 @@ def main():
             sys.exit("Cancelado por el usuario.")
 
     idx = _index_instruments(client)
-    ok, skipped = 0, 0
+
+    # Resolver ids primero y pedir todos los precios en una sola llamada.
+    resolved = []
     for o in orders:
-        iid, price = resolve_instrument(o, idx)
+        iid, _ = resolve_instrument(o, idx)
+        resolved.append((o, iid))
+    prices = fetch_prices(client, [iid for _, iid in resolved if iid])
+
+    ok, skipped = 0, 0
+    for o, iid in resolved:
         if not iid:
             log(f"SALTADA {o['name']} ({o['etoro']}): no se resolvio instrument_id")
             skipped += 1
             continue
+        price = prices.get(str(iid))
         sl_rate = compute_stop_loss(o, price)
         tp_rate = compute_take_profit(o, price)
         if (o.get("stop_loss_pct") or o.get("take_profit_pct")) and price is None:
