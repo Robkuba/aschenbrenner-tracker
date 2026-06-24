@@ -97,9 +97,32 @@ class EtoroClient:
 
     def _request(self, method, path, params=None, body=None, retries=3):
         url = f"{ETORO_BASE}/{path.lstrip('/')}"
+        # Si esta instalada la libreria 'requests', la usamos: imita mejor a un
+        # navegador y suele esquivar el bloqueo de Cloudflare (error 1010).
+        try:
+            import requests  # opcional
+        except ImportError:
+            requests = None
+
+        if requests is not None:
+            last_err = None
+            for attempt in range(retries):
+                try:
+                    r = requests.request(method, url, headers=self._headers(),
+                                         params=params, json=body, timeout=30)
+                    if r.status_code >= 400:
+                        raise EtoroError(f"HTTP {r.status_code} en {method} {path}: {r.text}")
+                    return r.json() if r.text else {}
+                except EtoroError:
+                    raise
+                except Exception as e:
+                    last_err = e
+                    time.sleep(1.5 * (attempt + 1))
+            raise EtoroError(f"Fallo de red en {method} {path}: {last_err}")
+
+        # ---- Plan B: urllib (stdlib) si no hay 'requests' ----
         if params:
             url += "?" + urllib.parse.urlencode(params, doseq=True)
-
         data = json.dumps(body).encode("utf-8") if body is not None else None
         last_err = None
         for attempt in range(retries):
