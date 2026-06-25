@@ -1,0 +1,42 @@
+# =====================================================================
+#  GitHub Actions: VIGIA de momento alcista. Corre solo varias veces al
+#  dia (horario de mercado USA) y te avisa por WhatsApp que activos estan
+#  en buen momento para comprar. SOLO LECTURA (usa Yahoo, no tu cuenta).
+#
+#  Guardar en:  .github/workflows/watch.yml
+#
+#  Secretos (Settings > Secrets and variables > Actions > Secrets):
+#      - CALLMEBOT_PHONE   (ej: +4915123456789)
+#      - CALLMEBOT_APIKEY  (la de CallMeBot)
+#  No necesita las llaves de eToro: el vigia solo consulta precios publicos.
+# =====================================================================
+name: Vigia de momento alcista (Kubabot)
+
+on:
+  schedule:
+    # Horario de mercado USA (UTC). Lunes a viernes.
+    - cron: "30 14 * * 1-5"   # ~apertura USA
+    - cron: "0 17 * * 1-5"    # mediodia USA
+    - cron: "30 19 * * 1-5"   # antes del cierre
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Vigilar momento alcista y avisar
+        env:
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+        run: python watch_signals.py --wa
