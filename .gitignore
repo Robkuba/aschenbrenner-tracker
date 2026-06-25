@@ -1,0 +1,12 @@
+# Artefactos generados en tiempo de ejecucion
+state.json
+proposed_orders.json
+executed_orders.log
+
+# Secretos / entorno
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
