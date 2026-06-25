@@ -1,7 +1,7 @@
 # =====================================================================
-#  GitHub Actions: VIGIA de momento alcista. Corre solo varias veces al
-#  dia (horario de mercado USA) y te avisa por WhatsApp que activos estan
-#  en buen momento para comprar. SOLO LECTURA (usa Yahoo, no tu cuenta).
+#  GitHub Actions: VIGIA de momento alcista. Manda 1 RESUMEN DIARIO por
+#  WhatsApp (tras el cierre de EE.UU.) con el estado de todos los activos
+#  y que esta en buen momento. SOLO LECTURA (usa Yahoo, no tu cuenta).
 #
 #  Guardar en:  .github/workflows/watch.yml
 #
@@ -14,10 +14,7 @@ name: Vigia de momento alcista (Kubabot)
 
 on:
   schedule:
-    # Horario de mercado USA (UTC). Lunes a viernes.
-    - cron: "30 14 * * 1-5"   # ~apertura USA
-    - cron: "0 17 * * 1-5"    # mediodia USA
-    - cron: "30 19 * * 1-5"   # antes del cierre
+    - cron: "45 20 * * 1-5"   # 1 vez al dia, tras el cierre de EE.UU. (L-V)
   workflow_dispatch:
 
 permissions:
