@@ -3,6 +3,9 @@
 Comandos exactos para usar el robot **Kubabot**. Copia y pega tal cual.
 Cambia los `...` por tus valores reales.
 
+> 📛 **Nombres actuales:** cartera de agentes **kubabot-rkuhwqhq** ·
+> clave API de **demo** = **xbot** (para practicar en la cuenta principal).
+
 > 🔑 Recuerda: las llaves **se borran al cerrar la ventana** de PowerShell.
 > Si abres una nueva, vuelve a pegar los pasos 1 y 2.
 

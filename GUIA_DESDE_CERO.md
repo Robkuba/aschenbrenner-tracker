@@ -26,7 +26,7 @@ como si se la explicáramos a un niño de 9 años. Sigue las casillas en orden. 
 ### 1. Tener la cuenta de eToro lista
 - [ ] Entra en tu cuenta de eToro y comprueba que está **verificada** (que ya
       enviaste tu DNI y te dijeron "ok"). Sin esto, las llaves no funcionan.
-- [ ] Mira que tu cartera **Kubabot-PGGTLZAC** tiene tus **200 $**.
+- [ ] Mira que tu cartera **kubabot-rkuhwqhq** tiene tus **200 $**.
 
 ### 2. Hacer las llaves secretas (API keys)
 - [ ] Entra en 👉 **https://api-portal.etoro.com/** con tu cuenta.
